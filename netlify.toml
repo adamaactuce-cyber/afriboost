@@ -1,0 +1,6 @@
+# Si ton projet a déjà un netlify.toml, fusionne ces sections dans le tien.
+[build.environment]
+  NODE_VERSION = "22"
+
+[functions]
+  directory = "netlify/functions"
