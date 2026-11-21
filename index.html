@@ -1463,7 +1463,7 @@ const DB={
   }
 };
 // Sans session : aucune donnée de clients ne doit rester dans ce navigateur (anciennes versions du site).
-try{if(!localStorage.getItem('ab_token'))['users','orders','deposits','promoCodes'].forEach(k=>localStorage.removeItem('ab_'+k));}catch(e){}
+try{if(!localStorage.getItem('ab_token'))['users','orders','deposits','promoCodes'].forEach(k=>localStorage.setItem('ab_'+k,'[]'));}catch(e){}
 
 // ── Init : charger les données Firebase au démarrage ──
 // Priorité : Firebase → localStorage → valeurs par défaut
@@ -1984,6 +1984,7 @@ async function authCall(fn,body){
 function authDone(j){
   try{localStorage.setItem('ab_token',j.token);}catch(e){}
   CU=j.user;DB.s('currentUser',j.user);
+  try{localStorage.setItem('ab_users',JSON.stringify([j.user]));}catch(e){}
   ['users','orders','deposits'].forEach(k=>FB.load(k,()=>{try{updateNav();if(k==='orders')loadOrders();}catch(e){}}));   // tes données (le serveur ne t'envoie que les tiennes)
   if(j.user&&j.user.isAdmin)FB.load('promoCodes');
   updateNav();navTo('home');showToast('✅ Bienvenue '+j.user.name+' !','success');
@@ -2022,7 +2023,7 @@ async function changePassword(){
   showToast('✅ Mot de passe changé','success');
 }
 
-function logout(){DB.s('currentUser',null);try{localStorage.removeItem('ab_token');['users','orders','deposits','promoCodes'].forEach(k=>localStorage.removeItem('ab_'+k));}catch(e){}CU=null;updateNav();closeSidebar();showAuth('login');}
+function logout(){DB.s('currentUser',null);try{localStorage.removeItem('ab_token');['users','orders','deposits','promoCodes'].forEach(k=>localStorage.setItem('ab_'+k,'[]'));}catch(e){}CU=null;updateNav();closeSidebar();showAuth('login');}
 
 function showAuth(type){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
