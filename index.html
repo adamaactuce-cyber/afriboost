@@ -465,6 +465,31 @@ body.light-mode #bottom-nav button.on{color:#6D28D9}
 #bottom-nav .bn-plus svg{stroke:#fff;width:26px;height:26px}
 body.has-bn{padding-bottom:84px}
 body.has-bn #cw{bottom:92px}
+
+/* ═══ CADEAU, FAQ, CONTACTS ═══ */
+.gift-banner{margin:0 0 18px;display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:18px;cursor:pointer;color:#fff;background:linear-gradient(135deg,#F59E0B,#EF4444 55%,#DB2777);box-shadow:0 8px 24px rgba(219,39,119,.35)}
+.gift-banner span{font-size:30px}.gift-banner b{display:block;font-size:14px}.gift-banner small{font-size:12px;opacity:.9}.gift-banner i{margin-left:auto;font-style:normal;font-size:26px;opacity:.9}
+.gift-banner div{min-width:0}
+.gboxes{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.gbox{background:var(--surf);border:2px solid var(--border);border-radius:18px;padding:16px 4px 12px;cursor:pointer;color:var(--text);font-family:inherit;font-weight:700;font-size:12px;animation:gshake 2.4s ease-in-out infinite}
+.gbox:nth-child(2){animation-delay:.25s}.gbox:nth-child(3){animation-delay:.5s}
+.gbox span{display:block;font-size:44px;margin-bottom:4px}
+.gbox:active{transform:scale(.94)}
+.gbox.open{animation:gpop .6s ease forwards;border-color:var(--gold)}
+.gbox.dim{opacity:.35;animation:none}
+@keyframes gshake{0%,70%,100%{transform:rotate(0)}74%{transform:rotate(-6deg)}80%{transform:rotate(6deg)}86%{transform:rotate(-4deg)}92%{transform:rotate(3deg)}}
+@keyframes gpop{0%{transform:scale(1)}50%{transform:scale(1.18)}100%{transform:scale(1.06)}}
+.gplats{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.gplats button{border:2px solid var(--border);background:var(--surf);color:var(--text);border-radius:999px;padding:9px 14px;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit}
+.gplats button.on{border-color:#8B5CF6;background:rgba(124,58,237,.18)}
+.tuto{display:flex;gap:14px;align-items:flex-start;margin-bottom:14px}
+.tn{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#8B5CF6,#6D28D9);color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none;font-family:'Exo 2',sans-serif}
+.tuto b{display:block;font-size:14px;margin-bottom:2px}.tuto span{font-size:13px;color:var(--muted);line-height:1.5}
+details.faq{border-top:1px solid var(--border);padding:12px 0}
+details.faq summary{cursor:pointer;font-weight:700;font-size:14px;list-style:none;display:flex;justify-content:space-between;gap:10px}
+details.faq summary::after{content:'＋';color:var(--blue);font-weight:800}
+details.faq[open] summary::after{content:'－'}
+details.faq p{margin:8px 0 0;font-size:13px;color:var(--muted);line-height:1.6}
 </style>
 </head>
 <body>
@@ -567,7 +592,10 @@ body.has-bn #cw{bottom:92px}
     <button class="sidebar-item" onclick="closeSidebar();openAnnouncements()"><span class="icon">🔔</span> Annonces &amp; notifications</button>
     <button class="sidebar-item" onclick="closeSidebar();openCommunity()"><span class="icon">👥</span> Communauté</button>
     <button class="sidebar-item" onclick="closeSidebar();installApp()"><span class="icon">📲</span> Installer l'application</button>
-    <button class="sidebar-item" onclick="showIntro()"><span class="icon">ℹ️</span> À propos</button>
+    <button class="sidebar-item" id="sb-gift" onclick="closeSidebar();openGift()" style="display:none"><span class="icon">🎁</span> Mon cadeau de bienvenue</button>
+    <button class="sidebar-item" id="sb-faq" onclick="navTo('faq')"><span class="icon">❓</span> Aide &amp; tutoriels</button>
+    <button class="sidebar-item" id="sb-contacts" onclick="navTo('contacts')"><span class="icon">📇</span> Contacts WhatsApp</button>
+    <button class="sidebar-item" id="sb-about" onclick="navTo('about')"><span class="icon">ℹ️</span> À propos</button>
     <button class="sidebar-item" onclick="navTo('legal')"><span class="icon">📜</span> CGU &amp; Mentions légales</button>
     <button class="sidebar-item" onclick="toggleLightMode()"><span class="icon">🌗</span> <span id="theme-toggle-label">Mode clair</span></button>
     <button class="sidebar-item" id="sb-admin" onclick="navTo('admin')" style="display:none"><span class="icon">⚙️</span> Admin Panel <span id="admin-badge" style="background:var(--red);color:white;border-radius:10px;padding:1px 7px;font-size:10px;font-weight:700;margin-left:auto;display:none">0</span></button>
@@ -609,6 +637,7 @@ body.has-bn #cw{bottom:92px}
       </div>
       <button class="hb-btn" onclick="navTo('wallet')">＋ Recharger mon solde</button>
     </div>
+    <div class="gift-banner" id="gift-banner" style="display:none" onclick="openGift()"><span>🎁</span><div><b>Ton cadeau de bienvenue t'attend</b><small>Ouvre une boîte et tente ta chance</small></div><i>›</i></div>
 
     <!-- BANNIÈRE PROMO FLASH -->
     <div id="promo-banner" style="display:none;margin:14px 16px 0;background:linear-gradient(135deg,var(--gold),var(--blue));border-radius:12px;padding:12px 14px;text-align:center;font-weight:800;font-size:13px;color:var(--dark);animation:btnGlow 2.6s ease-in-out infinite"></div>
@@ -851,6 +880,68 @@ body.has-bn #cw{bottom:92px}
 </div>
 
 <!-- SUPPORT -->
+<div id="page-faq" class="page">
+  <div class="page-header"><h2>❓ Aide &amp; tutoriels</h2></div>
+  <div class="ref-card">
+    <h3>🚀 Commander en 3 étapes</h3>
+    <div class="tuto"><div class="tn">1</div><div><b>Choisis ton service</b><span>Sur l'accueil, choisis le réseau (TikTok, Instagram…), puis le service et la quantité.</span></div></div>
+    <div class="tuto"><div class="tn">2</div><div><b>Colle ton lien</b><span>Copie le lien de ta vidéo ou de ton profil depuis l'application du réseau, et colle-le dans la case « Lien ».</span></div></div>
+    <div class="tuto"><div class="tn">3</div><div><b>Paie en ligne</b><span>Paie avec ton solde, ou directement en ligne de façon sécurisée. Suis ensuite ta commande dans « Commandes ».</span></div></div>
+  </div>
+  <div class="ref-card">
+    <h3>💼 Recharger mon solde</h3>
+    <div class="tuto"><div class="tn">1</div><div><b>Ouvre « Recharger »</b><span>Appuie sur le gros bouton ＋ en bas de l'écran.</span></div></div>
+    <div class="tuto"><div class="tn">2</div><div><b>Entre le montant</b><span>Puis valide : tu es envoyé vers la page de paiement sécurisée.</span></div></div>
+    <div class="tuto"><div class="tn">3</div><div><b>Reviens sur le site</b><span>Ton solde est mis à jour dès que le paiement est confirmé.</span></div></div>
+  </div>
+  <div class="ref-card">
+    <h3>Questions fréquentes</h3>
+    <details class="faq"><summary>Mon compte doit-il être public ?</summary><p>Oui. Pour que le service soit livré, le profil ou la vidéo concernée doit être public pendant toute la livraison. Ne change pas ton nom d'utilisateur avant la fin de la commande.</p></details>
+    <details class="faq"><summary>Combien de temps faut-il pour être livré ?</summary><p>Le délai dépend du service choisi. Suis l'état de ta commande dans la page « Commandes » : « en cours » puis « terminée ».</p></details>
+    <details class="faq"><summary>Je ne vois pas encore le résultat, que faire ?</summary><p>Vérifie que ton compte est bien public et que le lien est correct. Si rien n'a bougé après un moment, contacte-nous avec le numéro de ta commande.</p></details>
+    <details class="faq"><summary>Le paiement est-il sécurisé ?</summary><p>Oui. Le paiement se fait en ligne sur une page de paiement sécurisée. AfriBoost ne voit jamais tes informations de carte ou de paiement mobile.</p></details>
+    <details class="faq"><summary>Que se passe-t-il si une commande échoue ?</summary><p>Si une commande payée avec ton solde échoue, le montant est remis sur ton solde.</p></details>
+    <details class="faq"><summary>Comment fonctionne le parrainage ?</summary><p>Partage ton lien depuis « Programme de parrainage ». Quand ton filleul commande, tu reçois 10 % de sa commande sur ton solde.</p></details>
+    <details class="faq"><summary>Comment installer l'application ?</summary><p>Ouvre le menu et appuie sur « Installer l'application ». Sur iPhone : bouton Partager, puis « Sur l'écran d'accueil ».</p></details>
+    <details class="faq"><summary>Comment recevoir les notifications ?</summary><p>Appuie sur la cloche 🔔 en haut, puis sur « Activer les notifications ».</p></details>
+    <details class="faq"><summary>J'ai oublié mon mot de passe</summary><p>Contacte-nous sur WhatsApp avec l'adresse e-mail de ton compte : nous t'aiderons à retrouver l'accès.</p></details>
+  </div>
+  <div class="ref-card"><h3>Besoin d'aide ?</h3><p>Écris-nous, nous répondons dès que possible.</p><button class="confirm-btn" style="width:100%" onclick="navTo('support')">💬 Contacter l'assistance</button></div>
+</div>
+
+<div id="page-about" class="page">
+  <div class="page-header"><h2>ℹ️ À propos d'AfriBoost</h2></div>
+  <div class="ref-card">
+    <h3>Qui sommes-nous ?</h3>
+    <p>AfriBoost t'aide à faire grandir tes réseaux sociaux : abonnés, vues et likes sur TikTok, Instagram, Facebook, YouTube et Telegram. Le site est pensé pour les créateurs et entrepreneurs d'Afrique francophone : simple à utiliser sur téléphone, avec un paiement en ligne sécurisé.</p>
+    <h3>Ce que tu peux faire</h3>
+    <p>• Commander un service en quelques secondes<br>• Recharger ton solde et suivre tes commandes<br>• Parrainer tes amis et gagner 10 % de leurs commandes<br>• Recevoir les offres et annonces en notification</p>
+    <h3>Notre engagement</h3>
+    <p>• Paiement en ligne sécurisé<br>• Suivi clair de chaque commande<br>• Une équipe disponible pour t'aider</p>
+  </div>
+  <div class="ref-card"><h3>Nous contacter</h3><div id="about-links" style="display:flex;flex-direction:column;gap:10px"></div></div>
+  <div class="ref-card"><button class="ghost-btn" style="width:100%" onclick="navTo('legal')">📄 Conditions et mentions légales</button></div>
+</div>
+
+<div id="page-contacts" class="page">
+  <div class="page-header"><h2>📇 Contacts WhatsApp</h2></div>
+  <div class="ref-card">
+    <h3>Reste en contact avec AfriBoost</h3>
+    <p>Enregistre notre numéro pour voir nos statuts WhatsApp (offres, nouveautés), et laisse-nous le tien pour recevoir nos infos et être ajouté à notre liste de diffusion.</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="ref-share-btn wa" style="flex:1 1 100%;padding:13px" onclick="saveAfriContact()">📥 Enregistrer le numéro AfriBoost</button>
+      <button class="ref-share-btn" id="ct-group" style="flex:1 1 100%;padding:13px;background:#6D28D9;display:none" onclick="openCommunity()">👥 Rejoindre le groupe WhatsApp</button>
+    </div>
+  </div>
+  <div class="ref-card">
+    <h3>📩 Laisse ton contact WhatsApp</h3>
+    <input type="text" class="auth-input" id="ct-name" maxlength="60" placeholder="Ton prénom" style="margin-bottom:10px" autocomplete="given-name">
+    <input type="tel" class="auth-input" id="ct-phone" placeholder="Numéro WhatsApp avec indicatif (ex : +22670112233)" style="margin-bottom:10px" autocomplete="tel">
+    <label style="display:flex;gap:10px;align-items:flex-start;font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:12px"><input type="checkbox" id="ct-consent" style="margin-top:3px">J'accepte qu'AfriBoost enregistre mon prénom et mon numéro WhatsApp pour m'envoyer des informations et m'ajouter à sa liste de diffusion. Mes données ne sont lisibles que par AfriBoost, et je peux demander mon retrait à tout moment.</label>
+    <button class="confirm-btn" id="ct-btn" style="width:100%" onclick="joinContacts()">Envoyer</button>
+  </div>
+</div>
+
 <div id="page-support" class="page">
   <div class="page-header"><h2>💬 Assistance</h2></div>
   <div style="padding:20px">
@@ -975,6 +1066,22 @@ body.has-bn #cw{bottom:92px}
       <input type="password" id="ann-key" autocomplete="off" placeholder="Clé d'envoi (PUSH_ADMIN_KEY, seulement pour la notification)" style="width:100%;background:var(--surf);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:13px;margin-bottom:10px">
       <button class="confirm-btn" id="ann-btn" onclick="publishAnnouncement()" style="width:100%">📣 Publier</button>
       <div id="ann-admin-list" style="margin-top:14px"></div>
+    </div>
+    <div class="admin-card">
+      <h3>🎁 Cadeau de bienvenue</h3>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:10px">Chaque nouveau client peut ouvrir une boîte (50 likes, 100 vues ou 10 abonnés). Les commandes cadeaux arrivent dans « Commandes » avec le prix 0 : tu les traites comme les autres.</p>
+      <label style="display:flex;gap:8px;align-items:center;font-size:13px"><input type="checkbox" id="gift-on" onchange="saveGiftSwitch()"> Cadeau de bienvenue activé</label>
+    </div>
+    <div class="admin-card">
+      <h3>📇 Contacts WhatsApp collectés</h3>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:10px">Les contacts laissés avec consentement. Télécharge le fichier .vcf et ouvre-le sur ton téléphone pour les ajouter à tes contacts WhatsApp.</p>
+      <input type="password" id="ct-key" autocomplete="off" placeholder="Clé admin (PUSH_ADMIN_KEY)" style="width:100%;background:var(--surf);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:13px;margin-bottom:10px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="ghost-btn" style="flex:1" onclick="contactsAdmin('count')">🔢 Nombre</button>
+        <button class="confirm-btn" style="flex:1" onclick="contactsAdmin('vcf')">⬇️ .vcf</button>
+        <button class="ghost-btn" style="flex:1" onclick="contactsAdmin('csv')">⬇️ .csv</button>
+      </div>
+      <div id="ct-count" style="font-size:13px;margin-top:10px"></div>
     </div>
     <div class="admin-card">
       <h3>🔗 Réseaux sociaux</h3>
@@ -1153,6 +1260,28 @@ body.has-bn #cw{bottom:92px}
 </div>
 
 <!-- SASPAY : statut du paiement en ligne -->
+<div class="modal-overlay" id="gift-modal" onclick="if(event.target===this)closeGift()">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div id="gift-step1" style="text-align:center">
+      <div style="font-size:40px">🎁</div>
+      <h3>Cadeau de bienvenue</h3>
+      <p style="font-size:13px;color:var(--muted);margin:6px 0 16px">Tente ta chance ! Choisis une boîte : une surprise gratuite t'attend dedans.</p>
+      <div class="gboxes" id="gboxes"></div>
+      <button class="ghost-btn" style="width:100%;margin-top:14px" onclick="closeGift()">Plus tard</button>
+    </div>
+    <div id="gift-step2" style="display:none;text-align:center">
+      <div style="font-size:64px" id="g-emoji">🎉</div>
+      <h3 id="g-title">Bravo !</h3>
+      <p style="font-size:13px;color:var(--muted);margin:6px 0 14px">Choisis le réseau et colle le lien où tu veux recevoir ton cadeau.</p>
+      <div class="gplats" id="g-plats"></div>
+      <input type="url" class="auth-input" id="g-link" placeholder="Colle le lien ici (https://…)" style="margin:12px 0">
+      <button class="confirm-btn" id="g-btn" style="width:100%" onclick="claimGift()">🎁 Recevoir mon cadeau</button>
+      <button class="ghost-btn" style="width:100%;margin-top:10px" onclick="closeGift()">Annuler</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="ann-modal" onclick="if(event.target===this)closeAnnouncements()">
   <div class="modal-sheet">
     <div class="modal-handle"></div>
@@ -1871,6 +2000,7 @@ function authDone(j){
   CU=j.user;DB.s('currentUser',j.user);
   FB.load('users',()=>{try{updateNav();}catch(e){}});   // rafraîchit la liste (sans mots de passe)
   updateNav();navTo('home');showToast('✅ Bienvenue '+j.user.name+' !','success');
+  setTimeout(()=>{try{maybeGift();}catch(e){}},1200);
 }
 async function register(){
   if(!getSiteConfig().registrationsOpen){showToast('❌ Les inscriptions sont temporairement fermées. Reviens bientôt !','error');return;}
@@ -1917,6 +2047,7 @@ function showAuth(type){
 function updateNav(){
   const li=!!CU;
   try{renderHomeBalance();}catch(e){}
+  try{updateGiftUI();}catch(e){}
   document.getElementById('nav-auth').style.display=li?'none':'flex';
   document.getElementById('nav-user').style.display=li?'flex':'none';
   document.getElementById('sb-admin').style.display=CU?.isAdmin?'block':'none';
@@ -1958,7 +2089,7 @@ function markBottomNav(p){
   document.querySelectorAll('#bottom-nav button').forEach(b=>b.classList.toggle('on',b.id==='bn-'+p));
 }
 function navTo(p){
-  if(!CU&&p!=='home'&&p!=='legal'){showAuth('login');closeSidebar();return}
+  if(!CU&&p!=='home'&&p!=='legal'&&p!=='faq'&&p!=='about'&&p!=='contacts'){showAuth('login');closeSidebar();return}
   document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
   document.getElementById('page-'+p).classList.add('active');
   document.querySelectorAll('.sidebar-item').forEach(x=>x.classList.remove('active'));
@@ -1970,6 +2101,7 @@ function navTo(p){
   if(p==='wallet')loadWallet();
   if(p==='wishlist')loadWishlistPage();
   if(p==='legal')loadLegalPage();
+  if(p==='about')loadAboutPage();
   if(p==='admin')loadAdmin();
   markBottomNav(p);
   updateNav();
@@ -2313,6 +2445,7 @@ function loadSettingsAdmin(){
   const sou=document.getElementById('soc-other-url');if(sou)sou.value=soc.otherUrl||'';
   const swc=document.getElementById('soc-wa-community');if(swc)swc.value=soc.waCommunity||'';
   try{loadAnnAdmin();}catch(e){}
+  const gon=document.getElementById('gift-on');if(gon)gon.checked=getSiteConfig().giftEnabled!==false;
 
   const promo=DB.g('promoBanner')||{};
   const pa=document.getElementById('promo-active');if(pa)pa.checked=!!promo.active;
@@ -2715,7 +2848,110 @@ function maybeInviteWA(){
   }catch(e){}
 }
 function closeWAInvite(){document.getElementById('wa-invite-modal').classList.remove('open');}
-setTimeout(()=>{try{updateBell();maybeInviteWA();}catch(e){}},3500);
+setTimeout(()=>{try{updateBell();maybeGift();maybeInviteWA();}catch(e){}},3500);
+// ══════════════════════════════════════
+// CADEAU DE BIENVENUE, À PROPOS, CONTACTS WHATSAPP
+// ══════════════════════════════════════
+const GIFT_DEF={likes:{emoji:'👍',t:'50 likes gratuits',plats:['tiktok','instagram','facebook']},views:{emoji:'👀',t:'100 vues gratuites',plats:['tiktok','instagram','facebook','youtube']},followers:{emoji:'🎉',t:'10 abonnés gratuits',plats:['tiktok','instagram','facebook','youtube','telegram']}};
+const PLAT_LAB={tiktok:'TikTok',instagram:'Instagram',facebook:'Facebook',youtube:'YouTube',telegram:'Telegram'};
+let giftMap=[],giftPick=null,giftPlat=null;
+const GIFT_FROM='2026-11-21T00:00:00.000Z';   // seuls les comptes créés à partir de cette date (nouveaux clients)
+function giftAvailable(){return !!CU&&!!CU.createdAt&&CU.createdAt>=GIFT_FROM&&!CU.giftClaimed&&getSiteConfig().giftEnabled!==false;}
+function updateGiftUI(){
+  const on=giftAvailable();
+  const b=document.getElementById('gift-banner'),s=document.getElementById('sb-gift');
+  if(b)b.style.display=on?'flex':'none';if(s)s.style.display=on?'flex':'none';
+}
+function openGift(){
+  if(!CU){showAuth('register');return;}
+  if(!giftAvailable()){showToast('🎁 Tu as déjà reçu ton cadeau de bienvenue','');return;}
+  giftMap=['likes','views','followers'].sort(()=>Math.random()-.5);   // les cadeaux changent de place à chaque ouverture
+  giftPick=null;giftPlat=null;
+  document.getElementById('gboxes').innerHTML=giftMap.map((k,i)=>`<button class="gbox" id="gb${i}" onclick="pickGiftBox(${i})"><span>📦</span>Boîte ${i+1}</button>`).join('');
+  document.getElementById('gift-step1').style.display='block';document.getElementById('gift-step2').style.display='none';
+  document.getElementById('gift-modal').classList.add('open');
+  try{localStorage.setItem('ab_giftSeen_'+CU.id,'1');}catch(e){}
+}
+function closeGift(){document.getElementById('gift-modal').classList.remove('open');}
+function pickGiftBox(i){
+  if(giftPick)return;
+  giftPick=giftMap[i];const g=GIFT_DEF[giftPick];
+  document.querySelectorAll('.gbox').forEach((b,j)=>{b.classList.add(j===i?'open':'dim');if(j===i)b.innerHTML='<span>'+g.emoji+'</span>'+g.t.split(' ').slice(0,2).join(' ');});
+  setTimeout(()=>{
+    document.getElementById('g-emoji').textContent=g.emoji;
+    document.getElementById('g-title').textContent='Bravo ! '+g.t;
+    giftPlat=null;
+    document.getElementById('g-plats').innerHTML=g.plats.map(p=>`<button id="gp-${p}" onclick="pickGiftPlat('${p}')">${PLAT_LAB[p]}</button>`).join('');
+    document.getElementById('gift-step1').style.display='none';document.getElementById('gift-step2').style.display='block';
+  },900);
+}
+function pickGiftPlat(p){giftPlat=p;document.querySelectorAll('#g-plats button').forEach(b=>b.classList.toggle('on',b.id==='gp-'+p));}
+const GIFT_ERR={already_claimed:'Tu as déjà reçu ton cadeau de bienvenue',phone_already_used:'Ce numéro de téléphone a déjà reçu un cadeau',gift_disabled:'Le cadeau de bienvenue est terminé',bad_link:'Le lien doit commencer par https://',bad_platform:'Choisis un réseau',bad_gift:'Choisis une boîte',not_logged_in:'Session expirée : reconnecte-toi puis réessaie',not_eligible:'Le cadeau est réservé aux nouveaux clients'};
+async function claimGift(){
+  if(!giftPlat){showToast('❌ Choisis un réseau','error');return;}
+  const link=document.getElementById('g-link').value.trim();
+  if(!/^https?:\/\/\S+$/i.test(link)){showToast('❌ Colle un lien qui commence par https://','error');return;}
+  const btn=document.getElementById('g-btn');btn.disabled=true;btn.textContent='Envoi…';
+  const r=await authCall('gift-claim',{token:localStorage.getItem('ab_token')||'',pick:giftPick,plat:giftPlat,link});
+  btn.disabled=false;btn.textContent='🎁 Recevoir mon cadeau';
+  if(!r.ok){
+    const m=r.msg;
+    showToast('❌ '+(m&&m.indexOf('Service de connexion indisponible')===0?'Cadeau indisponible pour le moment':m),'error');return;
+  }
+  CU.giftClaimed=true;DB.s('currentUser',CU);updateGiftUI();closeGift();
+  FB.load('users',()=>{});FB.load('orders',()=>{try{loadOrders();}catch(e){}});
+  showToast('🎉 Cadeau reçu ! Suis-le dans « Commandes »','success');
+}
+// messages d'erreur du cadeau et des contacts dans authCall
+Object.assign(AUTH_ERR,GIFT_ERR,{consent_required:'Coche la case de consentement',name_required:'Écris ton prénom',bad_phone:'Numéro invalide : ajoute l\'indicatif (ex : +22670112233)',too_many_requests:'Trop de demandes. Réessaie plus tard.'});
+function maybeGift(){
+  try{
+    if(!giftAvailable())return;
+    if(localStorage.getItem('ab_giftSeen_'+CU.id))return;
+    if(document.querySelector('.modal-overlay.open'))return;
+    openGift();
+  }catch(e){}
+}
+function saveGiftSwitch(){const c=Object.assign({},getSiteConfig(),{giftEnabled:document.getElementById('gift-on').checked});DB.s('siteConfig',c);showToast(c.giftEnabled?'✅ Cadeau activé':'Cadeau désactivé','success');}
+
+// — À propos
+function loadAboutPage(){
+  const cfg=getSiteConfig(),soc=DB.g('socialLinks')||{};const rows=[];
+  const a=(u,l)=>/^https?:\/\//i.test(u||'')?`<a class="ghost-btn" style="display:block;text-align:center;text-decoration:none" href="${ordEsc(u)}" target="_blank" rel="noopener">${l}</a>`:'';
+  if(cfg.whatsapp)rows.push(a('https://wa.me/'+String(cfg.whatsapp).replace(/\D/g,''),'💬 WhatsApp'));
+  rows.push(a(soc.waCommunity,'👥 Groupe WhatsApp'),a(soc.facebook,'📘 Facebook'),a(soc.tiktok,'🎵 TikTok'),a(soc.youtube,'▶️ YouTube'),a(soc.otherUrl,ordEsc(soc.otherLabel||'🔗 Notre lien')));
+  document.getElementById('about-links').innerHTML=rows.join('')||'<div class="ord-empty">Bientôt disponible.</div>';
+}
+
+// — Contacts WhatsApp
+function saveAfriContact(){
+  const n=String(getSiteConfig().whatsapp||'').replace(/\D/g,'');
+  if(!n){showToast('Le numéro AfriBoost sera bientôt disponible','');return;}
+  const v='BEGIN:VCARD\r\nVERSION:3.0\r\nFN:AfriBoost\r\nTEL;TYPE=CELL:+'+n+'\r\nEND:VCARD\r\n';
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([v],{type:'text/vcard'}));a.download='AfriBoost.vcf';document.body.appendChild(a);a.click();a.remove();
+  showToast('📥 Ouvre le fichier pour enregistrer le contact','success');
+}
+async function joinContacts(){
+  const name=document.getElementById('ct-name').value.trim(),phone=document.getElementById('ct-phone').value.trim(),consent=document.getElementById('ct-consent').checked;
+  if(!name){showToast('❌ Écris ton prénom','error');return;}
+  if(!consent){showToast('❌ Coche la case de consentement','error');return;}
+  const btn=document.getElementById('ct-btn');btn.disabled=true;
+  const r=await authCall('contacts-join',{name,phone,consent});
+  btn.disabled=false;
+  if(!r.ok){showToast('❌ '+r.msg,'error');return;}
+  document.getElementById('ct-name').value='';document.getElementById('ct-phone').value='';document.getElementById('ct-consent').checked=false;
+  showToast(r.j.already?'✅ Ton contact était déjà enregistré':'✅ Merci ! Ton contact est enregistré','success');
+}
+async function contactsAdmin(action){
+  const key=document.getElementById('ct-key').value;if(!key){showToast('❌ Entre la clé admin','error');return;}
+  try{
+    const r=await fetch(SP_FN+'contacts-admin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,action})});
+    if(!r.ok){const j=await r.json().catch(()=>({}));showToast('❌ '+({bad_key:'Clé incorrecte',push_admin_key_missing:"La variable PUSH_ADMIN_KEY n'existe pas encore dans Netlify"}[j.error]||('Erreur '+r.status)),'error');return;}
+    if(action==='count'){const j=await r.json();document.getElementById('ct-count').textContent='📇 '+j.count+' contact(s) enregistré(s)';return;}
+    const blob=await r.blob();const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='contacts-afriboost.'+action;document.body.appendChild(a);a.click();a.remove();
+    showToast('✅ Fichier téléchargé','success');
+  }catch(e){showToast('❌ '+(e&&e.message||e),'error');}
+}
 function cpyRefCode(){navigator.clipboard.writeText(document.getElementById('ref-code-txt').textContent).then(()=>showToast('✅ Code copié !','success'));}
 function shareRef(w){
   const link=document.getElementById('ref-link-txt').textContent;
