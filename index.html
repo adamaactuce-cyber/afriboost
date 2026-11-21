@@ -1361,7 +1361,7 @@ details.faq p{margin:8px 0 0;font-size:13px;color:var(--muted);line-height:1.6}
         <span style="font-size:13px;color:var(--muted)">Solde disponible</span>
         <span style="font-family:'Exo 2',sans-serif;font-weight:800;color:var(--green)" id="mb-bal">0 XOF</span>
       </div>
-      <button class="confirm-btn" style="margin-bottom:10px" onclick="payWithBalance()">✅ CONFIRMER LA COMMANDE</button>
+      <button class="confirm-btn" id="pay-balance-btn" style="margin-bottom:10px" onclick="payWithBalance()">✅ CONFIRMER LA COMMANDE</button>
       <button onclick="document.getElementById('pay-modal').classList.remove('open')" style="width:100%;padding:12px;background:transparent;border:1px solid var(--border);border-radius:12px;color:var(--muted);font-size:13px;cursor:pointer">Annuler</button>
     </div>
 
@@ -1424,25 +1424,27 @@ const FB=(function(){
   const PROJ='afriboost-16b5e';
   const BASE='https://firestore.googleapis.com/v1/projects/'+PROJ+'/databases/(default)/documents/afriboost/';
 
-  // Écriture Firestore (PATCH = merge)
+  // Tout passe par le serveur (qui vérifie qui a le droit de quoi). Plus d'accès direct à la base depuis le navigateur.
+  const GW='/.netlify/functions/data';
+  const PRIVATE_WRITE={users:1,orders:1,deposits:1}; // modifiés uniquement par des actions serveur dédiées
+  function tok(){try{return localStorage.getItem('ab_token')||'';}catch(e){return '';}}
+  function hdr(){const t=tok();return t?{Authorization:'Bearer '+t}:{};}
+
   function save(key,value){
-    if(key==='users'&&Array.isArray(value))value=value.map(function(u){var c=Object.assign({},u);delete c.pass;return c;}); // jamais de mot de passe dans la base
-    fetch(BASE+key+'?key='+API,{
-      method:'PATCH',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({fields:{value:{stringValue:JSON.stringify(value)}}})
-    }).catch(()=>{});
+    if(PRIVATE_WRITE[key])return;
+    fetch(GW,{method:'POST',headers:Object.assign({'Content-Type':'application/json'},hdr()),body:JSON.stringify({key:key,value:value})})
+      .then(r=>{if(!r.ok&&r.status!==401)try{showToast('⚠️ Enregistrement refusé ('+r.status+')','error');}catch(e){}else if(r.status===401)try{showToast('⚠️ Session expirée : reconnecte-toi pour enregistrer','error');}catch(e){}})
+      .catch(()=>{});
   }
 
-  // Lecture Firestore → met à jour localStorage → callback(data)
+  // Lecture → met à jour localStorage → callback(data)
   function load(key,cb){
-    fetch(BASE+key+'?key='+API)
-      .then(r=>r.json())
+    fetch(GW+'?key='+encodeURIComponent(key),{headers:hdr()})
+      .then(r=>r.ok?r.json():null)
       .then(d=>{
-        if(d&&d.fields&&d.fields.value){
-          const data=JSON.parse(d.fields.value.stringValue);
-          localStorage.setItem('ab_'+key,JSON.stringify(data));
-          if(cb)cb(data);
+        if(d&&d.data!==undefined&&d.data!==null){
+          localStorage.setItem('ab_'+key,JSON.stringify(d.data));
+          if(cb)cb(d.data);
         } else {
           if(cb)cb(null);
         }
@@ -1460,6 +1462,8 @@ const DB={
     if(k!=='currentUser')FB.save(k,v); // sync Firebase (jamais la session de l'utilisateur)
   }
 };
+// Sans session : aucune donnée de clients ne doit rester dans ce navigateur (anciennes versions du site).
+try{if(!localStorage.getItem('ab_token'))['users','orders','deposits','promoCodes'].forEach(k=>localStorage.removeItem('ab_'+k));}catch(e){}
 
 // ── Init : charger les données Firebase au démarrage ──
 // Priorité : Firebase → localStorage → valeurs par défaut
@@ -1488,16 +1492,6 @@ function fbInit(){
         if(k==='announcements'){try{updateBell();}catch(e){}}
         if(k==='socialLinks'){try{maybeInviteWA();}catch(e){}}
       } else {
-        // Données par défaut si Firebase vide
-        if(k==='users'&&!DB.g('users')){
-          DB.s('users',[{
-            id:'admin001',name:'Admin AfriBoost',email:'admin@afriboost.com',
-            phone:'+226 67 63 49 25',balance:0,
-            referralCode:'ADMIN01',referredBy:null,isAdmin:true,
-            orders:[],referralEarnings:0,referralCount:0,
-            createdAt:new Date().toISOString()
-          }]);
-        }
         if(k==='orders'&&!DB.g('orders'))DB.s('orders',[]);
         if(k==='socialLinks'&&!DB.g('socialLinks'))DB.s('socialLinks',{youtube:'',facebook:'',tiktok:'',otherLabel:'',otherUrl:''});
       }
@@ -1505,14 +1499,6 @@ function fbInit(){
   });
 }
 
-// Valeurs par défaut locales si localStorage vide (avant Firebase répond)
-if(!DB.g('users'))localStorage.setItem('ab_users',JSON.stringify([{
-  id:'admin001',name:'Admin AfriBoost',email:'admin@afriboost.com',
-  phone:'+226 67 63 49 25',balance:0,
-  referralCode:'ADMIN01',referredBy:null,isAdmin:true,
-  orders:[],referralEarnings:0,referralCount:0,
-  createdAt:new Date().toISOString()
-}]));
 if(!DB.g('orders'))localStorage.setItem('ab_orders',JSON.stringify([]));
 
 // ══════════════════════════════════════
@@ -1894,16 +1880,17 @@ function calcPrice(){
 // CODES PROMO
 // ══════════════════════════════════════
 let appliedPromo=null;
-function applyPromoCode(){
+async function applyPromoCode(){
   const code=document.getElementById('promo-input').value.trim().toUpperCase();
   const msgEl=document.getElementById('promo-msg');
   if(!code){msgEl.textContent='';appliedPromo=null;calcPrice();return;}
-  const promos=DB.g('promoCodes')||[];
-  const p=promos.find(x=>x.code===code);
-  if(!p){msgEl.innerHTML='<span style="color:var(--red)">❌ Code invalide</span>';appliedPromo=null;calcPrice();return;}
-  if(p.expiresAt && new Date(p.expiresAt) < new Date()){msgEl.innerHTML='<span style="color:var(--red)">❌ Ce code a expiré</span>';appliedPromo=null;calcPrice();return;}
-  appliedPromo={code:p.code,percent:p.percent};
-  msgEl.innerHTML='<span style="color:var(--green)">✅ Code appliqué : -'+p.percent+'%</span>';
+  if(!CU){msgEl.innerHTML='<span style="color:var(--red)">Connecte-toi pour utiliser un code</span>';appliedPromo=null;calcPrice();return;}
+  let r,j={};
+  try{r=await fetch(SP_FN+'promo-check',{method:'POST',headers:Object.assign({'Content-Type':'application/json'},FB_hdr()),body:JSON.stringify({code})});j=await r.json().catch(()=>({}));}
+  catch(e){msgEl.innerHTML='<span style="color:var(--red)">❌ Connexion impossible</span>';return;}
+  if(!r.ok){msgEl.innerHTML='<span style="color:var(--red)">'+(r.status===410?'❌ Ce code a expiré':'❌ Code invalide')+'</span>';appliedPromo=null;calcPrice();return;}
+  appliedPromo={code:j.code,percent:j.percent};
+  msgEl.innerHTML='<span style="color:var(--green)">✅ Code appliqué : -'+j.percent+'%</span>';
   calcPrice();
 }
 
@@ -1952,52 +1939,32 @@ function doBuy(){
 }
 
 // CHEMIN A : débiter le solde directement
-function payWithBalance(){
+async function payWithBalance(){
   if(!pendO||!CU)return;
-  const users=DB.g('users')||[];
-  const ui=users.findIndex(u=>u.id===CU.id);
-  if(ui<0){showToast('❌ Erreur utilisateur','error');return;}
-  if((users[ui].balance||0)<pendO.total){
-    showToast('❌ Solde insuffisant','error');
-    document.getElementById('pay-modal').classList.remove('open');
-    return;
+  const btn=document.getElementById('pay-balance-btn');if(btn)btn.disabled=true;
+  const po=pendO;
+  let r,j={};
+  try{
+    r=await fetch(SP_FN+'order-balance',{method:'POST',headers:Object.assign({'Content-Type':'application/json'},FB_hdr()),
+      body:JSON.stringify({plat:po.plat,svc:po.svc,type:po.type,qty:po.qty,link:po.link,promoCode:po.promoCode||''})});
+    j=await r.json().catch(()=>({}));
+  }catch(e){if(btn)btn.disabled=false;showToast('❌ Connexion impossible. Vérifie ton internet.','error');return;}
+  if(btn)btn.disabled=false;
+  if(!r.ok){
+    const msg=j.error==='insufficient_balance'?'Solde insuffisant':j.error==='not_logged_in'?'Session expirée, reconnecte-toi':(j.error&&j.error.length<80&&!/_/.test(j.error)?j.error:'Commande impossible pour le moment');
+    showToast('❌ '+msg,'error');return;
   }
-  // Débiter
-  users[ui].balance=(users[ui].balance||0)-pendO.total;
-  CU.balance=users[ui].balance;
-  DB.s('currentUser',CU);
-
-  // Créer la commande (status: processing car payé immédiatement)
-  const oid='ORD'+Date.now();
-  const order={
-    id:oid,userId:CU.id,plat:pendO.plat,
-    svcName:pendO.svc+' — '+pendO.type,
-    link:pendO.link,qty:pendO.qty,amount:pendO.total,
-    payMethod:'balance',status:'processing',promoCode:pendO.promoCode||null,
-    createdAt:new Date().toISOString()
-  };
-  const orders=DB.g('orders')||[];
-  orders.push(order);
-  DB.s('orders',orders);
+  CU.balance=j.balance;DB.s('currentUser',CU);
+  try{const us=DB.g('users')||[];const ui=us.findIndex(x=>x.id===CU.id);if(ui>=0){us[ui].balance=j.balance;localStorage.setItem('ab_users',JSON.stringify(us));}}catch(e){}
+  const orders=(DB.g('orders')||[]).filter(o=>o.id!==j.order.id);orders.push(j.order);localStorage.setItem('ab_orders',JSON.stringify(orders));
   appliedPromo=null;
-
-  if(!users[ui].orders)users[ui].orders=[];
-  users[ui].orders.push(oid);
-
-  // Commission parrainage
-  if(CU.referredBy){
-    const ri=users.findIndex(u=>u.id===CU.referredBy);
-    if(ri>=0){const c=Math.round(pendO.total*.10);users[ri].balance=(users[ri].balance||0)+c;users[ri].referralEarnings=(users[ri].referralEarnings||0)+c;}
-  }
-  DB.s('users',users);
   updateNav();
-
   document.getElementById('pay-modal').classList.remove('open');
-
   pendO=null;
   showToast('✅ Commande validée ! Solde débité.','success');
   loadOrders();
 }
+function FB_hdr(){try{const t=localStorage.getItem('ab_token');return t?{Authorization:'Bearer '+t}:{};}catch(e){return {};}}
 
 // CHEMIN B steps
 
@@ -2017,7 +1984,8 @@ async function authCall(fn,body){
 function authDone(j){
   try{localStorage.setItem('ab_token',j.token);}catch(e){}
   CU=j.user;DB.s('currentUser',j.user);
-  FB.load('users',()=>{try{updateNav();}catch(e){}});   // rafraîchit la liste (sans mots de passe)
+  ['users','orders','deposits'].forEach(k=>FB.load(k,()=>{try{updateNav();if(k==='orders')loadOrders();}catch(e){}}));   // tes données (le serveur ne t'envoie que les tiennes)
+  if(j.user&&j.user.isAdmin)FB.load('promoCodes');
   updateNav();navTo('home');showToast('✅ Bienvenue '+j.user.name+' !','success');
   setTimeout(()=>{try{maybeGift();}catch(e){}},1200);
 }
@@ -2054,7 +2022,7 @@ async function changePassword(){
   showToast('✅ Mot de passe changé','success');
 }
 
-function logout(){DB.s('currentUser',null);try{localStorage.removeItem('ab_token');}catch(e){}CU=null;updateNav();closeSidebar();showAuth('login');}
+function logout(){DB.s('currentUser',null);try{localStorage.removeItem('ab_token');['users','orders','deposits','promoCodes'].forEach(k=>localStorage.removeItem('ab_'+k));}catch(e){}CU=null;updateNav();closeSidebar();showAuth('login');}
 
 function showAuth(type){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -2356,6 +2324,7 @@ function _renderAdmin(){
         <div style="font-family:'Exo 2',sans-serif;font-size:14px;font-weight:800;color:var(--green)">${(u.balance||0).toLocaleString()} XOF</div>
         <div style="font-size:10px;color:var(--muted)">${(u.orders||[]).length} cmd</div>
         <button onclick="editUserBalance('${u.id}')" style="margin-top:4px;background:rgba(124,58,237,.15);border:1px solid var(--blue);color:var(--blue2);border-radius:6px;padding:3px 8px;font-size:10px;cursor:pointer">✏️ Solde</button>
+        <button onclick="resetUserPassword('${u.id}')" style="margin-top:4px;background:rgba(255,255,255,.06);border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:3px 8px;font-size:10px;cursor:pointer">🔑 Mot de passe</button>
         <button onclick="toggleReseller('${u.id}')" style="margin-top:4px;background:${u.isReseller?'var(--gold)':'rgba(255,255,255,.06)'};border:1px solid var(--border);color:${u.isReseller?'var(--dark)':'var(--muted)'};border-radius:6px;padding:3px 8px;font-size:10px;cursor:pointer;font-weight:700">${u.isReseller?'⭐ Revendeur':'Rendre revendeur'}</button>
       </div>
     </div>
@@ -2384,37 +2353,41 @@ function generateWeeklyReport(){
   navigator.clipboard.writeText(msg).then(()=>showToast('✅ Rapport copié ! Colle-le où tu veux le garder','success'));
 }
 
-function resetStats(){
+async function resetStats(){
   if(!confirm('⚠️ Ceci va supprimer TOUTES les commandes et remettre les revenus à 0. Les comptes clients restent intacts. Continuer ?'))return;
   if(!confirm('Dernière confirmation : cette action est définitive. On y va ?'))return;
-  DB.s('orders',[]);
-  DB.s('deposits',[]);
+  if(!await adminAct({action:'reset-stats'}))return;
   showToast('✅ Statistiques réinitialisées','success');
-  loadAdmin();
+  adminRefresh();
 }
 
-function toggleReseller(uid){
-  const users=DB.g('users')||[];
-  const ui=users.findIndex(u=>u.id===uid);
-  if(ui<0)return;
-  users[ui].isReseller=!users[ui].isReseller;
-  DB.s('users',users);
-  showToast(users[ui].isReseller?'⭐ Compte marqué revendeur (-'+RESELLER_DISCOUNT+'%)':'Statut revendeur retiré','success');
-  loadAdmin();
+async function toggleReseller(uid){
+  const j=await adminAct({action:'user-reseller',id:uid});
+  if(!j)return;
+  showToast(j.isReseller?'⭐ Compte marqué revendeur (-'+RESELLER_DISCOUNT+'%)':'Statut revendeur retiré','success');
+  adminRefresh();
 }
 
-function editUserBalance(uid){
-  const users=DB.g('users');
-  const u=users.find(x=>x.id===uid);
+async function editUserBalance(uid){
+  const u=(DB.g('users')||[]).find(x=>x.id===uid);
   if(!u)return;
   const nb=prompt('Nouveau solde pour '+u.name+' (actuel: '+(u.balance||0)+' XOF):');
   if(nb===null)return;
   const amt=parseInt(nb);
-  if(isNaN(amt)){showToast('❌ Montant invalide','error');return;}
-  u.balance=amt;
-  DB.s('users',users);
+  if(isNaN(amt)||amt<0){showToast('❌ Montant invalide','error');return;}
+  if(!await adminAct({action:'user-balance',id:uid,balance:amt}))return;
   showToast('✅ Solde mis à jour: '+amt.toLocaleString()+' XOF','success');
-  loadAdmin();
+  adminRefresh();
+}
+
+async function resetUserPassword(uid){
+  const u=(DB.g('users')||[]).find(x=>x.id===uid);
+  if(!u)return;
+  const pw=prompt('Nouveau mot de passe pour '+u.name+' (6 caractères minimum). Donne-le ensuite au client, qu\'il pourra le changer :');
+  if(pw===null)return;
+  if(pw.length<6){showToast('❌ 6 caractères minimum','error');return;}
+  if(!await adminAct({action:'user-password',id:uid,password:pw}))return;
+  showToast('✅ Mot de passe de '+u.name+' réinitialisé','success');
 }
 
 function loadDepositsAdminFull(){
@@ -2657,26 +2630,22 @@ function aTab(t,el){
   loadAdmin();
 }
 
-function updSt(id,st){
-  const orders=DB.g('orders')||[];
-  const i=orders.findIndex(x=>x.id===id);
-  if(i<0)return;
-  const prev=orders[i].status;
-  orders[i].status=st;
-  DB.s('orders',orders);
-
-  // Si la commande passe à "failed" et qu'elle était payée par solde → rembourser
-  if(st==='failed' && orders[i].payMethod==='balance' && prev!=='failed'){
-    const users=DB.g('users')||[];
-    const ui=users.findIndex(u=>u.id===orders[i].userId);
-    if(ui>=0){
-      users[ui].balance=(users[ui].balance||0)+orders[i].amount;
-      DB.s('users',users);
-      showToast('🔄 '+orders[i].amount.toLocaleString()+' XOF remboursés au client','success');
-      return;
-    }
-  }
-  showToast('✅ Statut mis à jour','success');
+async function adminAct(body){
+  let r,j={};
+  try{r=await fetch(SP_FN+'admin-act',{method:'POST',headers:Object.assign({'Content-Type':'application/json'},FB_hdr()),body:JSON.stringify(body)});j=await r.json().catch(()=>({}));}
+  catch(e){showToast('❌ Connexion impossible','error');return null;}
+  if(!r.ok){showToast('❌ '+(r.status===401?'Session expirée : reconnecte-toi':r.status===403?'Action réservée à l\'admin':(r.status===404?'Introuvable ou déjà traité':'Action impossible ('+j.error+')')),'error');return null;}
+  return j;
+}
+function adminRefresh(){
+  let n=3;const done=()=>{if(--n===0)try{loadAdmin();}catch(e){}};
+  ['users','orders','deposits'].forEach(k=>FB.load(k,done));
+}
+async function updSt(id,st){
+  const j=await adminAct({action:'order-status',id,status:st});
+  if(!j){adminRefresh();return;}
+  showToast(j.refunded?'🔄 '+j.refunded.toLocaleString()+' XOF remboursés au client':'✅ Statut mis à jour','success');
+  adminRefresh();
 }
 
 function bLbl(s){return{pending:'⏳ En attente',processing:'🔵 En cours',completed:'✅ Complété',failed:'❌ Échoué'}[s]||s}
@@ -3133,30 +3102,20 @@ function loadDepositsAdmin(){
   `).join('');
 }
 
-function activateDeposit(depId){
-  const deps=DB.g('deposits')||[];
-  const dep=deps.find(d=>d.id===depId);
+async function activateDeposit(depId){
+  const dep=(DB.g('deposits')||[]).find(d=>d.id===depId);
   if(!dep){showToast('❌ Dépôt introuvable','error');return;}
-  const users=DB.g('users');
-  const ui=users.findIndex(u=>u.id===dep.userId);
-  if(ui<0){showToast('❌ Utilisateur introuvable','error');return;}
-  users[ui].balance=(users[ui].balance||0)+dep.amount;
-  dep.status='activated';
-  dep.activatedAt=new Date().toISOString();
-  DB.s('users',users);DB.s('deposits',deps);
+  if(!await adminAct({action:'deposit',id:depId,decision:'activate'}))return;
   showToast('✅ '+dep.amount.toLocaleString()+' XOF activés pour '+dep.userName,'success');
-  loadAdmin();
+  adminRefresh();
 }
 
-function rejectDeposit(depId){
-  const deps=DB.g('deposits')||[];
-  const dep=deps.find(d=>d.id===depId);
+async function rejectDeposit(depId){
+  const dep=(DB.g('deposits')||[]).find(d=>d.id===depId);
   if(!dep){showToast('❌ Dépôt introuvable','error');return;}
-  dep.status='rejected';
-  dep.rejectedAt=new Date().toISOString();
-  DB.s('deposits',deps);
+  if(!await adminAct({action:'deposit',id:depId,decision:'reject'}))return;
   showToast('🚫 Paiement rejeté pour '+dep.userName,'error');
-  loadAdmin();
+  adminRefresh();
 }
 
 function loadTxHistory(){
@@ -3351,15 +3310,13 @@ function toggleWishlist(){
     showToast('💡 Connecte-toi pour garder tes favoris définitivement','');
     return;
   }
-  const users=DB.g('users')||[];
-  const ui=users.findIndex(x=>x.id===CU.id);
-  if(ui<0)return;
-  if(!users[ui].wishlist)users[ui].wishlist=[];
-  const exists=users[ui].wishlist.some(w=>w.key===key);
-  if(exists){users[ui].wishlist=users[ui].wishlist.filter(w=>w.key!==key);showToast('🤍 Retiré des favoris','');}
-  else{users[ui].wishlist.push(item);showToast('❤️ Ajouté aux favoris','success');}
-  DB.s('users',users);
-  updateWishlistBtn();
+  fetch(SP_FN+'me-act',{method:'POST',headers:Object.assign({'Content-Type':'application/json'},FB_hdr()),body:JSON.stringify({action:'wishlist',item})})
+    .then(r=>r.ok?r.json():Promise.reject()).then(j=>{
+      const users=DB.g('users')||[];const ui=users.findIndex(x=>x.id===CU.id);
+      if(ui>=0){const w=(users[ui].wishlist||[]).filter(x=>x.key!==key);if(j.added)w.push(item);users[ui].wishlist=w;localStorage.setItem('ab_users',JSON.stringify(users));}
+      showToast(j.added?'❤️ Ajouté aux favoris':'🤍 Retiré des favoris',j.added?'success':'');
+      updateWishlistBtn();
+    }).catch(()=>showToast('❌ Impossible pour le moment','error'));
 }
 const DEFAULT_LEGAL_TEXT=`AfriBoost — Conditions Générales d'Utilisation
 
@@ -3430,10 +3387,7 @@ if(!localStorage.getItem('ab_seenIntro')){
 function trackVisit(){
   if(sessionStorage.getItem('ab_visitCounted'))return;
   sessionStorage.setItem('ab_visitCounted','1');
-  FB.load('visitorCount',function(count){
-    const n=(count||0)+1;
-    DB.s('visitorCount',n);
-  });
+  fetch(SP_FN+'visit',{method:'POST'}).catch(()=>{});
 }
 
 // ══════════════════════════════════════

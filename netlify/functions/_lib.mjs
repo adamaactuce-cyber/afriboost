@@ -1,6 +1,7 @@
 // Code partagé : SasPay, Firestore (même base que le site), stockage serveur des paiements.
 import { getStore } from '@netlify/blobs';
 import { CATALOG, RESELLER_DISCOUNT } from './_catalog.mjs';
+import { createSign } from 'node:crypto';
 
 const SASPAY_BASE = 'https://api.saspay.me/api/v1';
 // Clé Firebase *publique* déjà présente dans index.html (pas un secret). Surchargeable par variable d'env.
@@ -42,9 +43,40 @@ export async function saspay(method, path, body) {
   return unwrap(j);
 }
 
+// ── Accès Firestore ──
+// Mode "verrouillé" : si la variable FIREBASE_SA_JSON (clé de compte de service) existe, le serveur s'identifie
+// auprès de Google et Firestore peut alors être fermé au public. Sinon : ancienne clé publique (compatibilité).
+let _tok = null;
+const b64u = (x) => Buffer.from(x).toString('base64url');
+async function fsToken() {
+  const raw = process.env.FIREBASE_SA_JSON;
+  if (!raw) return null;
+  if (_tok && _tok.exp > Date.now() + 60000) return _tok.v;
+  const sa = JSON.parse(raw);
+  const now = Math.floor(Date.now() / 1000);
+  const head = b64u(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
+  const claim = b64u(JSON.stringify({ iss: sa.client_email, scope: 'https://www.googleapis.com/auth/datastore', aud: 'https://oauth2.googleapis.com/token', iat: now, exp: now + 3600 }));
+  const sig = createSign('RSA-SHA256').update(head + '.' + claim).sign(sa.private_key).toString('base64url');
+  const r = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion: head + '.' + claim + '.' + sig }),
+  });
+  if (!r.ok) throw new Error('Jeton Firestore refusé : ' + r.status);
+  const j = await r.json();
+  _tok = { v: j.access_token, exp: Date.now() + (Number(j.expires_in) || 3600) * 1000 };
+  return _tok.v;
+}
+async function fsFetch(key, query, init = {}) {
+  const t = await fsToken();
+  const q = new URLSearchParams(query || {});
+  if (!t) q.set('key', FB_API);
+  const headers = { ...(init.headers || {}), ...(t ? { Authorization: 'Bearer ' + t } : {}) };
+  return fetch(FS + key + '?' + q, { ...init, headers });
+}
+
 // ── Firestore (documents "afriboost/<clé>" = {value: JSON en chaîne}) ──
 export async function fsRead(key) {
-  const r = await fetch(FS + key + '?key=' + FB_API);
+  const r = await fsFetch(key);
   if (r.status === 404) return { data: null, updateTime: null };
   if (!r.ok) throw new Error('Firestore lecture ' + key + ' : ' + r.status);
   const d = await r.json();
@@ -53,9 +85,9 @@ export async function fsRead(key) {
 }
 // Écriture avec précondition updateTime : évite d'écraser une modification concurrente (course read-modify-write).
 async function fsWrite(key, value, updateTime) {
-  const q = new URLSearchParams({ key: FB_API });
-  if (updateTime) q.set('currentDocument.updateTime', updateTime); else q.set('currentDocument.exists', 'false');
-  const r = await fetch(FS + key + '?' + q, {
+  const q = {};
+  if (updateTime) q['currentDocument.updateTime'] = updateTime; else q['currentDocument.exists'] = 'false';
+  const r = await fsFetch(key, q, {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ fields: { value: { stringValue: JSON.stringify(value) } } }),
   });
