@@ -930,6 +930,7 @@ details.faq p{margin:8px 0 0;font-size:13px;color:var(--muted);line-height:1.6}
   <div class="ref-card">
     <h3>Reste en contact avec AfriBoost</h3>
     <p>Enregistre notre numéro pour voir nos statuts WhatsApp (offres, nouveautés), et laisse-nous le tien pour recevoir nos infos et être ajouté à notre liste de diffusion.</p>
+    <p style="font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:12px">💡 Sur WhatsApp, un statut n'est vu que par les personnes qui ont ton numéro dans leur répertoire. Enregistre le nôtre pour ne rien rater de nos offres et preuves de livraison.</p>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
       <button class="ref-share-btn wa" style="flex:1 1 100%;padding:13px" onclick="saveAfriContact()">📥 Enregistrer le numéro AfriBoost</button>
       <button class="ref-share-btn" id="ct-group" style="flex:1 1 100%;padding:13px;background:#6D28D9;display:none" onclick="openCommunity()">👥 Rejoindre le groupe WhatsApp</button>
@@ -1058,6 +1059,12 @@ details.faq p{margin:8px 0 0;font-size:13px;color:var(--muted);line-height:1.6}
 
   <!-- PARAMÈTRES -->
   <div id="at-p" style="display:none">
+    <div class="admin-card">
+      <h3>📊 Export des ventes</h3>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:10px">Télécharge les commandes en fichier tableau (s'ouvre dans Excel ou Google Sheets).</p>
+      <select id="ex-per" style="width:100%;background:var(--surf);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);margin-bottom:8px"><option value="7">7 derniers jours</option><option value="30">30 derniers jours</option><option value="0">Tout</option></select>
+      <button class="confirm-btn" onclick="exportSales()" style="width:100%">⬇️ Télécharger le fichier</button>
+    </div>
     <div class="admin-card">
       <h3>🎬 Tutoriels vidéo &amp; questions</h3>
       <p style="font-size:12px;color:var(--muted);margin-bottom:10px">Ajoute une question ou un tutoriel. Il apparaît tout de suite dans la page « Aide &amp; tutoriels ». Le lien vidéo est facultatif (YouTube, TikTok, Facebook…).</p>
@@ -1471,6 +1478,7 @@ function fbInit(){
           const u=(data||[]).find(x=>x.id===CU.id);
           if(u){CU.balance=u.balance||0;localStorage.setItem('ab_currentUser',JSON.stringify(CU));try{updateNav();}catch(e){}}
         }
+        if(k==='orders'){try{orderUpdates();}catch(e){}}
         if(k==='socialLinks'){try{renderSocialLinks();}catch(e){}}
         if(k==='promoBanner'){try{renderPromoBanner();}catch(e){}}
         if(k==='siteLogo'){try{applySiteLogo(data);}catch(e){}}
@@ -1998,7 +2006,7 @@ function closePayModal(e){if(e.target===document.getElementById('pay-modal'))doc
 // ══════════════════════════════════════
 // AUTH
 // ══════════════════════════════════════
-const AUTH_ERR={missing_fields:'Remplis tous les champs',bad_email:"Cet e-mail n'est pas valide",password_too_short:'Mot de passe trop court (6 min)',password_too_long:'Mot de passe trop long',email_taken:'Email déjà utilisé',registrations_closed:'Les inscriptions sont temporairement fermées. Reviens bientôt !',bad_credentials:'Email ou mot de passe incorrect',too_many_attempts:'Trop d\'essais. Réessaie dans 15 minutes.',not_logged_in:'Session expirée, reconnecte-toi'};
+const AUTH_ERR={missing_fields:'Remplis tous les champs',bad_email:"Cet e-mail n'est pas valide",password_too_short:'Mot de passe trop court (6 min)',password_too_long:'Mot de passe trop long',email_taken:'Email déjà utilisé',bad_phone:'Entre un numéro valide, avec l\'indicatif (ex : +226 70 11 22 33)',phone_taken:'Ce numéro est déjà utilisé par un autre compte',registrations_closed:'Les inscriptions sont temporairement fermées. Reviens bientôt !',bad_credentials:'Email ou mot de passe incorrect',too_many_attempts:'Trop d\'essais. Réessaie dans 15 minutes.',not_logged_in:'Session expirée, reconnecte-toi'};
 async function authCall(fn,body){
   let r,j={};
   try{r=await fetch(SP_FN+fn,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});j=await r.json().catch(()=>({}));}
@@ -2019,7 +2027,7 @@ async function register(){
         e=document.getElementById('r-e').value.trim().toLowerCase(),
         p=document.getElementById('r-p').value.trim(),
         pw=document.getElementById('r-pw').value;
-  if(!n||!e||!pw){showToast('❌ Remplis les champs obligatoires','error');return;}
+  if(!n||!e||!pw||!p){showToast('❌ Remplis les champs obligatoires (numéro compris)','error');return;}
   if(pw.length<6){showToast('❌ Mot de passe trop court (6 min)','error');return;}
   showToast('⏳ Création du compte...','');
   const r=await authCall('auth-register',{name:n,email:e,phone:p,password:pw,ref:localStorage.getItem('ab_pendingRef')||''});
@@ -2285,7 +2293,7 @@ function loadAdmin(){
   FB.load('orders',o=>{if(o)localStorage.setItem('ab_orders',JSON.stringify(o));});
   FB.load('deposits',d=>{if(d)localStorage.setItem('ab_deposits',JSON.stringify(d));});
   // Réafficher après chargement Firebase
-  setTimeout(()=>_renderAdmin(),900);
+  setTimeout(()=>{_renderAdmin();adminNews();adminPoll();},900);
 }
 function _renderAdmin(){
   if(!CU?.isAdmin)return;
@@ -2928,6 +2936,69 @@ function maybeGift(){
 function saveGiftSwitch(){const c=Object.assign({},getSiteConfig(),{giftEnabled:document.getElementById('gift-on').checked});DB.s('siteConfig',c);showToast(c.giftEnabled?'✅ Cadeau activé':'Cadeau désactivé','success');}
 
 // — À propos
+// — Export des ventes (CSV) —
+function csvCell(v){
+  let t=String(v==null?'':v).replace(/\r?\n/g,' ');
+  if(/^[=+\-@\t]/.test(t))t="'"+t; // empêche l'exécution de formules dans Excel
+  return '"'+t.replace(/"/g,'""')+'"';
+}
+function exportSales(){
+  if(!CU||!CU.isAdmin)return;
+  const days=parseInt(document.getElementById('ex-per').value,10)||0;
+  const since=days?Date.now()-days*864e5:0;
+  const users=DB.g('users')||[];
+  const rows=(DB.g('orders')||[]).filter(o=>new Date(o.createdAt).getTime()>=since).sort((a,b)=>new Date(a.createdAt)-new Date(b.createdAt));
+  if(!rows.length){showToast('Aucune commande sur cette période','error');return;}
+  const head=['Date','N° commande','Client','E-mail','Téléphone','Réseau','Service','Quantité','Montant (XOF)','Paiement','Statut','Code promo'];
+  const lines=[head.map(csvCell).join(';')].concat(rows.map(o=>{
+    const u=users.find(x=>x.id===o.userId)||{};
+    return [new Date(o.createdAt).toLocaleString('fr-FR'),o.id,u.name||'',u.email||'',u.phone||'',o.plat||'',o.svcName||'',o.qty||0,o.amount||0,ordPayLabel(o.payMethod),bLbl(o.status).replace(/^\S+\s/,''),o.promoCode||''].map(csvCell).join(';');
+  }));
+  const total=rows.filter(o=>o.status!=='failed').reduce((t,o)=>t+(o.amount||0),0);
+  lines.push(['','','','','','','','Total (hors échouées)',total].map(csvCell).join(';'));
+  const blob=new Blob(['\ufeff'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='afriboost-ventes-'+new Date().toISOString().slice(0,10)+'.csv';
+  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+  showToast('✅ '+rows.length+' commande(s) exportée(s)','success');
+}
+
+// — Alerte admin : nouveautés depuis la dernière visite + client : commande terminée —
+function adminNews(){
+  if(!CU||!CU.isAdmin)return;
+  const orders=DB.g('orders')||[],deps=DB.g('deposits')||[];
+  let seen=0;try{seen=parseInt(localStorage.getItem('ab_adm_seen')||'0',10)||0;}catch(e){}
+  const t=x=>new Date(x.createdAt).getTime()||0;
+  const no=orders.filter(o=>t(o)>seen).length,nd=deps.filter(d=>t(d)>seen).length;
+  try{localStorage.setItem('ab_adm_seen',String(Date.now()));}catch(e){}
+  if(seen&&(no||nd))showToast('🔔 '+(no?no+' nouvelle(s) commande(s)':'')+(no&&nd?' · ':'')+(nd?nd+' nouvelle(s) recharge(s)':''),'success');
+}
+let _admPoll=null;
+function adminPoll(){
+  if(_admPoll)return;
+  _admPoll=setInterval(()=>{
+    const pg=document.getElementById('page-admin');
+    if(!CU||!CU.isAdmin||document.hidden||!pg||!pg.classList.contains('active'))return;
+    loadAdmin();
+  },60000);
+}
+function orderUpdates(){
+  if(!CU||CU.isAdmin)return;
+  let seen={};try{seen=JSON.parse(localStorage.getItem('ab_ord_seen_'+CU.id)||'null')||null;}catch(e){}
+  const mine=(DB.g('orders')||[]).filter(o=>o.userId===CU.id);
+  const now={};mine.forEach(o=>{now[o.id]=o.status;});
+  if(seen){
+    mine.forEach(o=>{
+      if(seen[o.id]&&seen[o.id]!==o.status){
+        if(o.status==='completed')showToast('✅ Ta commande #'+String(o.id).slice(-6)+' est terminée !','success');
+        else if(o.status==='failed')showToast('❌ Ta commande #'+String(o.id).slice(-6)+' a échoué','error');
+        else if(o.status==='processing')showToast('🔵 Ta commande #'+String(o.id).slice(-6)+' est en cours','success');
+      }
+    });
+  }
+  try{localStorage.setItem('ab_ord_seen_'+CU.id,JSON.stringify(now));}catch(e){}
+}
+
 // — Tutoriels & questions ajoutés par l'admin —
 function faqList(){const a=DB.g('faqItems');return Array.isArray(a)?a:[];}
 function loadFaqPage(){

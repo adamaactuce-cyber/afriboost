@@ -31,20 +31,30 @@ await t('ancien compte : connexion OK, converti, mot de passe retiré de Firesto
 await t('mauvais mot de passe refusé', async () => assert.equal((await call(login, { email: 'admin@afriboost.com', password: 'nope' })).s, 401));
 await t('e-mail inconnu refusé (même réponse)', async () => assert.equal((await call(login, { email: 'zz@x.com', password: 'abcdef' })).s, 401));
 await t('inscription : crée le compte, sans mot de passe dans Firestore', async () => {
-  const r = await call(reg, { name: 'Awa', email: 'Awa@x.com', password: 'secret1', phone: '70', ref: 'ADMIN01' });
+  const r = await call(reg, { name: 'Awa', email: 'Awa@x.com', password: 'secret1', phone: '+226 70 11 22 33', ref: 'ADMIN01' });
   assert.equal(r.s, 200); assert.equal(JSON.stringify(fs.users).includes('secret1'), false);
   assert.equal(fs.users.find((u) => u.email === 'awa@x.com').referredBy, 'admin001');
   assert.equal(fs.users[0].referralCount, 1);
   assert.equal((await call(login, { email: 'awa@x.com', password: 'secret1' })).s, 200);
 });
 await t('inscription : e-mail déjà pris, mot de passe trop court, e-mail invalide', async () => {
-  assert.equal((await call(reg, { name: 'B', email: 'awa@x.com', password: 'secret2' })).s, 409);
-  assert.equal((await call(reg, { name: 'B', email: 'b@x.com', password: '123' })).s, 400);
-  assert.equal((await call(reg, { name: 'B', email: 'bad', password: 'abcdef' })).s, 400);
+  assert.equal((await call(reg, { name: 'B', email: 'awa@x.com', password: 'secret2', phone: '+22671000001' })).s, 409);
+  assert.equal((await call(reg, { name: 'B', email: 'b@x.com', password: '123', phone: '+22671000001' })).s, 400);
+  assert.equal((await call(reg, { name: 'B', email: 'bad', password: 'abcdef', phone: '+22671000001' })).s, 400);
+});
+await t('doublons : même numéro (avec/sans indicatif), numéro manquant, e-mails truqués', async () => {
+  const P = { name: 'D', password: 'abcdef' };
+  assert.equal((await call(reg, { ...P, email: 'd@x.com', phone: '70112233' })).b.error, 'phone_taken');
+  assert.equal((await call(reg, { ...P, email: 'd@x.com', phone: '0022670112233' })).b.error, 'phone_taken');
+  assert.equal((await call(reg, { ...P, email: 'd@x.com' })).b.error, 'bad_phone');
+  assert.equal((await call(reg, { ...P, email: 'awa+2@x.com', phone: '+22671000003' })).b.error, 'email_taken');
+  assert.equal((await call(reg, { ...P, email: 'g.o.o@gmail.com', phone: '+22671000004' })).s, 200);
+  assert.equal((await call(reg, { ...P, email: 'goo+promo@googlemail.com', phone: '+22671000005' })).b.error, 'email_taken');
+  assert.equal((await call(reg, { ...P, email: 'e@x.com', phone: '+22671000006' })).s, 200);
 });
 await t('inscriptions fermées respectées', async () => {
   fs.siteConfig.registrationsOpen = false;
-  assert.equal((await call(reg, { name: 'C', email: 'c@x.com', password: 'abcdef' })).s, 403);
+  assert.equal((await call(reg, { name: 'C', email: 'c@x.com', password: 'abcdef', phone: '+22671000002' })).s, 403);
   fs.siteConfig.registrationsOpen = true;
 });
 await t('verrou après 5 échecs', async () => {
