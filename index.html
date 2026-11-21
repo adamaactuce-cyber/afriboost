@@ -489,6 +489,7 @@ details.faq{border-top:1px solid var(--border);padding:12px 0}
 details.faq summary{cursor:pointer;font-weight:700;font-size:14px;list-style:none;display:flex;justify-content:space-between;gap:10px}
 details.faq summary::after{content:'＋';color:var(--blue);font-weight:800}
 details.faq[open] summary::after{content:'－'}
+a.vid-btn{display:inline-block;margin-top:10px;padding:9px 14px;border-radius:10px;background:var(--blue);color:#fff;font-weight:700;font-size:13px;text-decoration:none}
 details.faq p{margin:8px 0 0;font-size:13px;color:var(--muted);line-height:1.6}
 </style>
 </head>
@@ -894,6 +895,7 @@ details.faq p{margin:8px 0 0;font-size:13px;color:var(--muted);line-height:1.6}
     <div class="tuto"><div class="tn">2</div><div><b>Entre le montant</b><span>Puis valide : tu es envoyé vers la page de paiement sécurisée.</span></div></div>
     <div class="tuto"><div class="tn">3</div><div><b>Reviens sur le site</b><span>Ton solde est mis à jour dès que le paiement est confirmé.</span></div></div>
   </div>
+  <div class="ref-card" id="faq-custom" style="display:none"></div>
   <div class="ref-card">
     <h3>Questions fréquentes</h3>
     <details class="faq"><summary>Mon compte doit-il être public ?</summary><p>Oui. Pour que le service soit livré, le profil ou la vidéo concernée doit être public pendant toute la livraison. Ne change pas ton nom d'utilisateur avant la fin de la commande.</p></details>
@@ -1056,6 +1058,15 @@ details.faq p{margin:8px 0 0;font-size:13px;color:var(--muted);line-height:1.6}
 
   <!-- PARAMÈTRES -->
   <div id="at-p" style="display:none">
+    <div class="admin-card">
+      <h3>🎬 Tutoriels vidéo &amp; questions</h3>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:10px">Ajoute une question ou un tutoriel. Il apparaît tout de suite dans la page « Aide &amp; tutoriels ». Le lien vidéo est facultatif (YouTube, TikTok, Facebook…).</p>
+      <input type="text" id="fq-q" maxlength="120" placeholder="Question ou titre (ex : Comment recharger mon solde ?)" style="width:100%;background:var(--surf);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);margin-bottom:8px">
+      <textarea id="fq-a" rows="3" maxlength="500" placeholder="Réponse (facultatif)" style="width:100%;background:var(--surf);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);margin-bottom:8px"></textarea>
+      <input type="text" id="fq-url" placeholder="Lien de la vidéo (https://…) — facultatif" style="width:100%;background:var(--surf);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);margin-bottom:8px">
+      <button class="confirm-btn" onclick="addFaqItem()" style="width:100%">➕ Ajouter</button>
+      <div id="fq-admin-list" style="margin-top:14px"></div>
+    </div>
     <div class="admin-card">
       <h3>📣 Annonces &amp; notifications</h3>
       <p style="font-size:12px;color:var(--muted);margin-bottom:10px">Publie une annonce visible dans la cloche 🔔 du site. Coche l'option pour l'envoyer aussi en notification sur les téléphones abonnés.</p>
@@ -1446,7 +1457,7 @@ const DB={
 // ── Init : charger les données Firebase au démarrage ──
 // Priorité : Firebase → localStorage → valeurs par défaut
 function fbInit(){
-  const KEYS=['users','orders','deposits','socialLinks','promoBanner','siteConfig','promoCodes','visitorCount','wishlist','siteLogo','packs','testimonials','legalText','maintenanceMode','announcements'];
+  const KEYS=['users','orders','deposits','socialLinks','promoBanner','siteConfig','promoCodes','visitorCount','wishlist','siteLogo','packs','testimonials','legalText','maintenanceMode','announcements','faqItems'];
   KEYS.forEach(k=>{
     FB.load(k,data=>{
       if(data){
@@ -2102,6 +2113,7 @@ function navTo(p){
   if(p==='wishlist')loadWishlistPage();
   if(p==='legal')loadLegalPage();
   if(p==='about')loadAboutPage();
+  if(p==='faq')loadFaqPage();
   if(p==='admin')loadAdmin();
   markBottomNav(p);
   updateNav();
@@ -2445,6 +2457,7 @@ function loadSettingsAdmin(){
   const sou=document.getElementById('soc-other-url');if(sou)sou.value=soc.otherUrl||'';
   const swc=document.getElementById('soc-wa-community');if(swc)swc.value=soc.waCommunity||'';
   try{loadAnnAdmin();}catch(e){}
+  try{loadFaqAdmin();}catch(e){}
   const gon=document.getElementById('gift-on');if(gon)gon.checked=getSiteConfig().giftEnabled!==false;
 
   const promo=DB.g('promoBanner')||{};
@@ -2915,6 +2928,39 @@ function maybeGift(){
 function saveGiftSwitch(){const c=Object.assign({},getSiteConfig(),{giftEnabled:document.getElementById('gift-on').checked});DB.s('siteConfig',c);showToast(c.giftEnabled?'✅ Cadeau activé':'Cadeau désactivé','success');}
 
 // — À propos
+// — Tutoriels & questions ajoutés par l'admin —
+function faqList(){const a=DB.g('faqItems');return Array.isArray(a)?a:[];}
+function loadFaqPage(){
+  const el=document.getElementById('faq-custom');if(!el)return;
+  const l=faqList();
+  if(!l.length){el.style.display='none';el.innerHTML='';return;}
+  el.style.display='';
+  el.innerHTML='<h3>🎬 Tutoriels vidéo</h3>'+l.map(f=>{
+    const u=f.url||'';
+    return `<details class="faq"><summary>${ordEsc(f.q)}</summary>${f.a?'<p style="white-space:pre-wrap">'+ordEsc(f.a)+'</p>':''}${/^https?:\/\//i.test(u)?'<a class="vid-btn" href="'+ordEsc(u)+'" target="_blank" rel="noopener noreferrer">▶ Regarder la vidéo</a>':''}</details>`;
+  }).join('');
+}
+function loadFaqAdmin(){
+  const el=document.getElementById('fq-admin-list');if(!el)return;
+  const l=faqList();
+  el.innerHTML=l.length?'<div style="font-size:12px;color:var(--muted);margin-bottom:6px">Déjà ajoutés</div>'+l.map(f=>`<div class="ann-adm"><div><b>${ordEsc(f.q)}</b><small>${f.url?'🎬 avec vidéo':'sans vidéo'}</small></div><button class="ghost-btn" style="padding:6px 10px;font-size:12px" onclick="delFaqItem('${ordEsc(f.id)}')">Supprimer</button></div>`).join(''):'';
+}
+function addFaqItem(){
+  const q=document.getElementById('fq-q').value.trim();
+  const a=document.getElementById('fq-a').value.trim();
+  const url=document.getElementById('fq-url').value.trim();
+  if(!q){showToast('❌ Écris la question ou le titre','error');return;}
+  if(url&&!/^https?:\/\//i.test(url)){showToast('❌ Le lien doit commencer par https://','error');return;}
+  if(!a&&!url){showToast('❌ Ajoute une réponse ou un lien vidéo','error');return;}
+  DB.s('faqItems',[...faqList(),{id:'F'+Date.now(),q,a,url,createdAt:new Date().toISOString()}].slice(0,60));
+  ['fq-q','fq-a','fq-url'].forEach(i=>document.getElementById(i).value='');
+  loadFaqAdmin();showToast('✅ Ajouté dans « Aide & tutoriels »','success');
+}
+function delFaqItem(id){
+  if(!confirm('Supprimer cet élément ?'))return;
+  DB.s('faqItems',faqList().filter(f=>f.id!==id));
+  loadFaqAdmin();showToast('Supprimé','success');
+}
 function loadAboutPage(){
   const cfg=getSiteConfig(),soc=DB.g('socialLinks')||{};const rows=[];
   const a=(u,l)=>/^https?:\/\//i.test(u||'')?`<a class="ghost-btn" style="display:block;text-align:center;text-decoration:none" href="${ordEsc(u)}" target="_blank" rel="noopener">${l}</a>`:'';
