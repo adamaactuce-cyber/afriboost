@@ -1974,7 +1974,14 @@ function closePayModal(e){if(e.target===document.getElementById('pay-modal'))doc
 // AUTH
 // ══════════════════════════════════════
 const AUTH_ERR={missing_fields:'Remplis tous les champs',bad_email:"Cet e-mail n'est pas valide",password_too_short:'Mot de passe trop court (6 min)',password_too_long:'Mot de passe trop long',email_taken:'Email déjà utilisé',bad_phone:'Entre un numéro valide, avec l\'indicatif (ex : +226 70 11 22 33)',phone_taken:'Ce numéro est déjà utilisé par un autre compte',registrations_closed:'Les inscriptions sont temporairement fermées. Reviens bientôt !',bad_credentials:'Email ou mot de passe incorrect',too_many_attempts:'Trop d\'essais. Réessaie dans 15 minutes.',not_logged_in:'Session expirée, reconnecte-toi'};
+let _authBusy=false;
 async function authCall(fn,body){
+  // un seul envoi à la fois : un double appui ne crée plus de demandes en double
+  if(_authBusy)return{ok:false,msg:'⏳ Patiente, ça charge… (la première fois peut prendre 10 secondes)'};
+  _authBusy=true;
+  try{return await authCall2(fn,body);}finally{_authBusy=false;}
+}
+async function authCall2(fn,body){
   let r,j={};
   try{r=await fetch(SP_FN+fn,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});j=await r.json().catch(()=>({}));}
   catch(e){return{ok:false,msg:'Connexion impossible. Vérifie ton internet.'};}
@@ -1998,7 +2005,7 @@ async function register(){
         pw=document.getElementById('r-pw').value;
   if(!n||!e||!pw||!p){showToast('❌ Remplis les champs obligatoires (numéro compris)','error');return;}
   if(pw.length<6){showToast('❌ Mot de passe trop court (6 min)','error');return;}
-  showToast('⏳ Création du compte...','');
+  showToast('⏳ Création du compte… patiente jusqu\'à 10 secondes','');
   const r=await authCall('auth-register',{name:n,email:e,phone:p,password:pw,ref:localStorage.getItem('ab_pendingRef')||''});
   if(!r.ok){showToast('❌ '+r.msg,'error');return;}
   localStorage.removeItem('ab_pendingRef');
